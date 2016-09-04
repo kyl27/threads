@@ -4,6 +4,8 @@
 #include <chrono>
 #include <thread>
 
+#include <omp.h>
+
 #include <sys/time.h>
 
 
@@ -32,31 +34,35 @@ void destroyTree(Node *node) {
     }
 }
 
-int sequentialSum(Node *node) {
+void openMpSum(Node *node, int *sum) {
     if (node != NULL) {
         int left_sum = 0, right_sum = 0;
-        #pragma omp task shared(left_sum)
-        left_sum = sequentialSum(node->left);
-        #pragma omp task shared(right_sum)
-        right_sum = sequentialSum(node->right);
+        #pragma omp task
+        openMpSum(node->left, &left_sum);
+        #pragma omp task
+        openMpSum(node->right, &right_sum);
         #pragma omp taskwait
 
-        return node->val + left_sum + right_sum;
         std::this_thread::sleep_for(std::chrono::milliseconds(node->val));
-    }
-    return 0;
-}
-
-void parallelSum(Node *node, int& sum) {
-    if (node != NULL) {
-        int left_sum = 0, right_sum = 0;
-        std::thread left (parallelSum, node->left, std::ref(left_sum));
-        parallelSum(node->right, right_sum);
-        left.join();
-        sum = node->val + left_sum + right_sum;
+        *sum = node->val + left_sum + right_sum;
         return;
     }
-    sum = 0;;
+    *sum = 0;
+}
+
+void parallelSum(Node *node, int *sum) {
+    if (node != NULL) {
+        int left_sum = 0, right_sum = 0;
+        std::thread left (parallelSum, node->left, &left_sum);
+        std::thread right (parallelSum, node->right, &right_sum);
+        left.join();
+        right.join();
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(node->val));
+        *sum = node->val + left_sum + right_sum;
+        return;
+    }
+    *sum = 0;;
 }
 
 double wall_time_ms() {
@@ -66,6 +72,9 @@ double wall_time_ms() {
 }
 
 int main() {
+
+    omp_set_num_threads(20);
+
     int depth, val;
 
     std::cout << "Tree depth: " << std::endl;
@@ -82,17 +91,22 @@ int main() {
         << " in " << elapsed << " ms" << std::endl;
 
     start = wall_time_ms();
-    int sum = sequentialSum(root);
+    int sum;
+    #pragma omp parallel
+    {
+        #pragma omp single
+        openMpSum(root, &sum);
+    }
     elapsed = wall_time_ms() - start;
 
-    std::cout << "Sequential DFS completed in " << elapsed << "ms" << std::endl;
+    std::cout << "openMpSum completed in " << elapsed << "ms" << std::endl;
     std::cout << "Sum: " << sum << std::endl;
 
     start = wall_time_ms();
-    parallelSum(root, sum);
+    parallelSum(root, &sum);
     elapsed = wall_time_ms() - start;
 
-    std::cout << "Parallel DFS completed in " << elapsed << "ms" << std::endl;
+    std::cout << "parallelSum completed in " << elapsed << "ms" << std::endl;
     std::cout << "Sum: " << sum << std::endl;
 
     destroyTree(root);
