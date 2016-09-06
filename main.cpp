@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <ctime>
+#include <cmath>
 #include <chrono>
 #include <thread>
 
@@ -8,6 +9,8 @@
 
 #include <sys/time.h>
 
+
+const int NUM_THREADS = 10;
 
 struct Node {
     int val;
@@ -37,9 +40,9 @@ void destroyTree(Node *node) {
 void openMpSum(Node *node, int *sum) {
     if (node != NULL) {
         int left_sum = 0, right_sum = 0;
-        #pragma omp task
+        #pragma omp task shared(left_sum)
         openMpSum(node->left, &left_sum);
-        #pragma omp task
+        #pragma omp task shared(right_sum)
         openMpSum(node->right, &right_sum);
         #pragma omp taskwait
 
@@ -50,14 +53,17 @@ void openMpSum(Node *node, int *sum) {
     *sum = 0;
 }
 
-void parallelSum(Node *node, int *sum) {
+void parallelSum(Node *node, int depth, int *sum) {
     if (node != NULL) {
         int left_sum = 0, right_sum = 0;
-        std::thread left (parallelSum, node->left, &left_sum);
-        std::thread right (parallelSum, node->right, &right_sum);
-        left.join();
-        right.join();
-
+        if (std::pow(2, depth) < NUM_THREADS) {
+            std::thread left (parallelSum, node->left, depth + 1, &left_sum);
+            parallelSum(node->right, depth + 1, &right_sum);
+            left.join();
+        } else {
+            parallelSum(node->left, depth + 1, &left_sum);
+            parallelSum(node->right, depth + 1, &right_sum);
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(node->val));
         *sum = node->val + left_sum + right_sum;
         return;
@@ -73,7 +79,7 @@ double wall_time_ms() {
 
 int main() {
 
-    omp_set_num_threads(20);
+    omp_set_num_threads(NUM_THREADS);
 
     int depth, val;
 
@@ -103,7 +109,7 @@ int main() {
     std::cout << "Sum: " << sum << std::endl;
 
     start = wall_time_ms();
-    parallelSum(root, &sum);
+    parallelSum(root, 0, &sum);
     elapsed = wall_time_ms() - start;
 
     std::cout << "parallelSum completed in " << elapsed << "ms" << std::endl;
