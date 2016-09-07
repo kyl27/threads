@@ -115,8 +115,8 @@ int main(int argc, char **argv) {
     int sum = sequentialSum(root);
     elapsed = wall_time_ms() - start;
 
-    std::cout << "sequentialSum completed in " << elapsed << "ms" << std::endl;
-    std::cout << "Sum: " << sum << std::endl;
+    std::cout << "sequentialSum completed in "
+        << elapsed << "ms - " << sum << std::endl;
 
     start = wall_time_ms();
     #pragma omp parallel
@@ -126,15 +126,17 @@ int main(int argc, char **argv) {
     }
     elapsed = wall_time_ms() - start;
 
-    std::cout << "openMpSum completed in " << elapsed << "ms" << std::endl;
-    std::cout << "Sum: " << sum << std::endl;
+    std::cout << "openMpSum completed in "
+        << elapsed << "ms with "
+        << NUM_THREADS << " threads - " << sum << std::endl;
 
     start = wall_time_ms();
     parallelSum(root, 0, &sum);
     elapsed = wall_time_ms() - start;
 
-    std::cout << "parallelSum completed in " << elapsed << "ms" << std::endl;
-    std::cout << "Sum: " << sum << std::endl;
+    std::cout << "parallelSum completed in "
+        << elapsed << "ms with "
+        << NUM_THREADS << " threads - " << sum << std::endl;
 
     destroyTree(root);
 
